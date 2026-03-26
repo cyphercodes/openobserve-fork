@@ -217,8 +217,25 @@ pub struct DimensionAnalyticsSummary {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub available_groups: Vec<FoundGroup>,
 
+    /// Field name sources for the "service" semantic group, ranked by hit count.
+    /// Shows which actual field names in each stream type contributed a service name.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub service_field_sources: Vec<ServiceFieldSource>,
+
     /// When this summary was generated
     pub generated_at: i64,
+}
+
+/// Describes a raw field name that was used to populate a semantic group,
+/// along with which stream types it appeared in and how many services used it.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ServiceFieldSource {
+    /// The raw field name in the stream, e.g. "kubernetes_labels_app"
+    pub field_name: String,
+    /// Stream types where this field was used, e.g. ["logs", "traces"]
+    pub stream_types: Vec<String>,
+    /// Number of services where this field provided the semantic group value
+    pub hit_count: usize,
 }
 
 /// A semantic alias group found in the org's stream schemas.

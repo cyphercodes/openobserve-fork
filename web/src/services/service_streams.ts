@@ -98,6 +98,12 @@ export interface FoundGroup {
   cardinality_class?: CardinalityClass;
 }
 
+export interface ServiceFieldSource {
+  field_name: string;
+  stream_types: string[];
+  hit_count: number;
+}
+
 export interface DimensionAnalyticsSummary {
   org_id: string;
   total_dimensions: number;
@@ -105,6 +111,7 @@ export interface DimensionAnalyticsSummary {
   recommended_priority_dimensions: string[];
   dimensions: DimensionAnalytics[];
   available_groups: FoundGroup[];
+  service_field_sources: ServiceFieldSource[];
   generated_at: number;
 }
 
@@ -180,6 +187,7 @@ export interface IdentitySet {
 
 export interface ServiceIdentityConfig {
   sets: IdentitySet[];
+  tracked_alias_ids: string[];
 }
 
 /**

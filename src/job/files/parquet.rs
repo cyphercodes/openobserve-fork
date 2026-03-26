@@ -1127,21 +1127,8 @@ async fn queue_services_from_parquet(
     // Get semantic field groups upfront (before spawning tasks)
     let semantic_groups =
         crate::service::db::system_settings::get_semantic_field_groups(org_id).await;
-    let identity_config = {
-        use config::meta::{correlation::ServiceIdentityConfig, system_settings::SettingScope};
-        match infra::table::system_settings::get(
-            &SettingScope::Org,
-            Some(org_id),
-            None,
-            "service_identity",
-        )
-        .await
-        {
-            Ok(Some(s)) => serde_json::from_value::<ServiceIdentityConfig>(s.setting_value)
-                .unwrap_or_else(|_| ServiceIdentityConfig::default_config()),
-            _ => ServiceIdentityConfig::default_config(),
-        }
-    };
+    let identity_config =
+        crate::service::db::system_settings::get_service_identity_config(org_id).await;
 
     // Create bounded channel for backpressure - drops records if consumer can't keep up
     // ARROW-NATIVE: Channel now sends RecordBatch directly (no HashMap conversion!)

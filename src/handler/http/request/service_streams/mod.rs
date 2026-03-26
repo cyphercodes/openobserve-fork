@@ -239,23 +239,8 @@ pub async fn get_identity_config(
     Path(org_id): Path<String>,
     Headers(_user_email): Headers<UserEmail>,
 ) -> Response {
-    use config::meta::{correlation::ServiceIdentityConfig, system_settings::SettingScope};
-
-    match infra::table::system_settings::get(
-        &SettingScope::Org,
-        Some(&org_id),
-        None,
-        "service_identity",
-    )
-    .await
-    {
-        Ok(Some(s)) => match serde_json::from_value::<ServiceIdentityConfig>(s.setting_value) {
-            Ok(cfg) => MetaHttpResponse::json(cfg),
-            Err(e) => MetaHttpResponse::internal_error(format!("Failed to parse config: {e}")),
-        },
-        Ok(None) => MetaHttpResponse::json(ServiceIdentityConfig::default_config()),
-        Err(e) => MetaHttpResponse::internal_error(format!("Failed to load config: {e}")),
-    }
+    let cfg = crate::service::db::system_settings::get_service_identity_config(&org_id).await;
+    MetaHttpResponse::json(cfg)
 }
 
 #[utoipa::path(
@@ -282,6 +267,29 @@ pub async fn save_identity_config(
 
     if let Err(e) = body.validate() {
         return MetaHttpResponse::bad_request(e);
+    }
+
+    // Validate that all tracked_alias_ids exist in canonical groups
+    #[cfg(feature = "enterprise")]
+    {
+        use std::collections::HashSet;
+        let known_ids: HashSet<String> =
+            o2_enterprise::enterprise::alerts::semantic_config::load_defaults_from_file()
+                .into_iter()
+                .map(|g| g.id)
+                .collect();
+        let unknown: Vec<&str> = body
+            .tracked_alias_ids
+            .iter()
+            .filter(|id| !known_ids.contains(*id))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            return MetaHttpResponse::bad_request(format!(
+                "Unknown alias group IDs: {}",
+                unknown.join(", ")
+            ));
+        }
     }
 
     let value = match serde_json::to_value(&body) {

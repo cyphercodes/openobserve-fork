@@ -435,6 +435,34 @@ pub fn get_default_semantic_field_groups() -> Vec<config::meta::correlation::Fie
     }
 }
 
+/// Load the service identity config for an org, applying env-default tracked_alias_ids
+/// when the stored config has an empty list (pre-migration records or first run).
+pub async fn get_service_identity_config(
+    org_id: &str,
+) -> config::meta::correlation::ServiceIdentityConfig {
+    use config::meta::{correlation::ServiceIdentityConfig, system_settings::SettingScope};
+    let mut config = match db::get(&SettingScope::Org, Some(org_id), None, "service_identity").await
+    {
+        Ok(Some(s)) => serde_json::from_value::<ServiceIdentityConfig>(s.setting_value)
+            .unwrap_or_else(|_| ServiceIdentityConfig::default_config()),
+        _ => ServiceIdentityConfig::default_config(),
+    };
+
+    // If tracked_alias_ids is empty (old stored config or default), populate from env default
+    #[cfg(feature = "enterprise")]
+    if config.tracked_alias_ids.is_empty() {
+        config.tracked_alias_ids = o2_enterprise::enterprise::common::config::get_config()
+            .service_streams
+            .tracked_alias_ids
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+
+    config
+}
+
 /// Get the updated_at timestamp for semantic_field_groups setting
 ///
 /// Returns the timestamp (in microseconds since epoch) when the semantic field groups

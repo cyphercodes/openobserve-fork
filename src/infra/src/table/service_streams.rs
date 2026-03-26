@@ -78,6 +78,12 @@ pub struct Model {
     #[sea_orm(column_type = "Json")]
     pub metrics_streams: Json,
 
+    /// JSONB object mapping semantic group ID → raw field name that produced it.
+    /// E.g., {"service": "kubernetes_labels_app", "k8s-cluster": "cluster_name"}
+    /// Nullable: absent for records written before this column was added.
+    #[sea_orm(column_type = "Json", nullable)]
+    pub field_name_mapping: Option<Json>,
+
     pub last_seen: i64,
 }
 
@@ -110,6 +116,9 @@ pub struct ServiceRecord {
     pub traces_streams: serde_json::Value,
     /// JSONB array of metric stream names
     pub metrics_streams: serde_json::Value,
+    /// JSONB object mapping semantic group ID → raw field name.
+    /// None for records written before this column was added.
+    pub field_name_mapping: Option<serde_json::Value>,
     pub last_seen: i64,
 }
 
@@ -130,6 +139,7 @@ impl ServiceRecord {
             logs_streams: serde_json::json!([]),
             traces_streams: serde_json::json!([]),
             metrics_streams: serde_json::json!([]),
+            field_name_mapping: None,
             last_seen: 0,
         }
     }
@@ -193,6 +203,9 @@ pub async fn put(org_id: &str, record: ServiceRecord) -> Result<(), errors::Erro
         active.traces_streams = Set(traces);
         active.metrics_streams = Set(metrics);
         active.last_seen = Set(record.last_seen);
+        if let Some(fnm) = record.field_name_mapping {
+            active.field_name_mapping = Set(Some(fnm));
+        }
 
         active
             .update(client)
@@ -284,6 +297,9 @@ pub async fn put(org_id: &str, record: ServiceRecord) -> Result<(), errors::Erro
             active.traces_streams = Set(traces);
             active.metrics_streams = Set(metrics);
             active.last_seen = Set(record.last_seen);
+            if let Some(fnm) = record.field_name_mapping {
+                active.field_name_mapping = Set(Some(fnm));
+            }
 
             active
                 .update(client)
@@ -311,6 +327,7 @@ pub async fn put(org_id: &str, record: ServiceRecord) -> Result<(), errors::Erro
                 logs_streams: Set(record.logs_streams),
                 traces_streams: Set(record.traces_streams),
                 metrics_streams: Set(record.metrics_streams),
+                field_name_mapping: Set(record.field_name_mapping),
                 last_seen: Set(record.last_seen),
             };
 
@@ -491,6 +508,7 @@ fn model_to_record(r: Model) -> ServiceRecord {
         logs_streams: r.logs_streams,
         traces_streams: r.traces_streams,
         metrics_streams: r.metrics_streams,
+        field_name_mapping: r.field_name_mapping,
         last_seen: r.last_seen,
     }
 }

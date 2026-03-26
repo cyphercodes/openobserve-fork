@@ -401,7 +401,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
               no-caps dense
               :label="t('settings.correlation.saveIdentityConfig')"
               :loading="saving"
-              :disable="saving"
+              :disable="saving || !isDirty"
               class="o2-primary-button tw:h-[32px]"
               data-test="service-identity-save-btn"
               @click="saveConfig"
@@ -413,7 +413,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         </div><!-- /padding -->
       </div><!-- /Service Configuration card -->
 
-      <!-- Section 2: Workload Detection -->
+      <!-- Section 3: Workload Detection -->
       <div v-if="availableGroups.length > 0" class="tw:mb-3 tw:rounded-lg tw:overflow-hidden"
         style="border: 1px solid var(--o2-border-color)"
       >
@@ -423,6 +423,103 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
         >
           <q-icon name="radar" size="18px" class="tw:text-teal-6" />
           <span class="tw:font-bold tw:text-sm">Workload Detection</span>
+        </div>
+
+        <!-- Collapsible: Workload detected using fields (N) -->
+        <div
+          class="tw:mx-3 tw:mt-3 tw:rounded-lg tw:border tw:overflow-hidden tw:transition-all"
+          :class="store.state.theme === 'dark' ? 'tw:bg-sky-900/10 tw:border-sky-300/30' : 'tw:bg-sky-50/80 tw:border-sky-200'"
+        >
+          <div
+            class="tw:flex tw:items-center tw:gap-2.5 tw:px-3 tw:py-2 tw:cursor-pointer hover:tw:opacity-80 tw:transition-opacity"
+            @click="trackedAliasExpanded = !trackedAliasExpanded"
+          >
+            <q-icon name="check_circle" size="18px" color="positive" />
+            <div class="tw:flex-1 tw:min-w-0 tw:text-[13px] tw:leading-tight">
+              Workload detected using fields
+              <span class="tw:text-xs tw:opacity-60">({{ trackedAliasIds.length }})</span>
+            </div>
+            <q-icon
+              :name="trackedAliasExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'"
+              size="18px"
+              class="tw:opacity-40 tw:shrink-0"
+            />
+          </div>
+
+          <div v-if="trackedAliasExpanded" class="tw:px-3 tw:pb-3 tw:pt-2 tw:border-t"
+            :class="store.state.theme === 'dark' ? 'tw:border-sky-300/30' : 'tw:border-sky-200'"
+          >
+            <div class="tw:rounded-lg tw:p-2.5"
+              :class="store.state.theme === 'dark' ? 'tw:bg-grey-9/60' : 'tw:bg-grey-1'"
+            >
+              <div class="tw:text-xs tw:mb-3"
+                :class="store.state.theme === 'dark' ? 'tw:text-grey-5' : 'tw:text-grey-6'"
+              >
+                Only these field alias groups are used for workload detection and recommendations.
+                Fields not in this list will not influence service discovery results. Cannot be empty.
+                <a
+                  class="config-link-btn tw:cursor-pointer tw:inline-block tw:mx-1 tw:px-2 tw:py-0.5 tw:rounded tw:text-xs tw:font-semibold tw:no-underline tw:align-middle"
+                  @click.prevent="emit('navigate-to-aliases', 'service')"
+                >Go to Field Aliases</a>
+                to configure individual field mappings.
+              </div>
+              <div class="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+                <!-- Pills for tracked aliases -->
+                <div
+                  v-for="alias in resolvedTrackedAliases"
+                  :key="alias.id"
+                  class="tw:flex tw:items-center tw:gap-1 tw:pl-3 tw:pr-1 tw:py-1 tw:rounded-md tw:text-xs tw:font-medium tw:transition-colors"
+                  style="border: 1px solid var(--o2-border-color)"
+                  :class="store.state.theme === 'dark'
+                    ? 'tw:bg-grey-9 tw:text-grey-2 tw:shadow-sm'
+                    : 'tw:bg-white tw:text-grey-8 tw:shadow-sm'"
+                >
+                  <span>{{ alias.label }}</span>
+                  <q-btn
+                    flat round dense size="xs" icon="cancel"
+                    :color="store.state.theme === 'dark' ? 'grey-5' : 'grey-6'"
+                    @click="trackedAliasIds = trackedAliasIds.filter(id => id !== alias.id)"
+                  />
+                </div>
+                <!-- Inline add select -->
+                <template v-if="addingTrackedAlias">
+                  <q-select
+                    ref="addTrackedAliasSelectRef"
+                    v-model="addTrackedAliasValue"
+                    :options="trackedAliasAddOptions"
+                    option-label="label"
+                    option-value="value"
+                    emit-value map-options
+                    use-input input-debounce="0"
+                    dense borderless
+                    placeholder="Select alias group"
+                    style="min-width: 220px"
+                    @update:model-value="onAddTrackedAlias($event)"
+                  />
+                  <q-btn flat round dense icon="close" size="sm" color="grey-6" @click="addingTrackedAlias = false; addTrackedAliasValue = ''" />
+                </template>
+                <!-- Add field button -->
+                <q-btn
+                  v-else
+                  flat no-caps dense size="sm"
+                  label="Add field"
+                  class="o2-secondary-button tw:h-[28px]"
+                  :class="store.state.theme === 'dark' ? 'o2-secondary-button-dark' : 'o2-secondary-button-light'"
+                  @click="addingTrackedAlias = true"
+                />
+              </div>
+              <div class="tw:flex tw:justify-end tw:mt-3">
+                <q-btn
+                  no-caps dense
+                  :label="t('settings.correlation.saveIdentityConfig')"
+                  :loading="saving"
+                  :disable="saving || !isDirty"
+                  class="o2-primary-button tw:h-[32px]"
+                  @click="saveConfig"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="tw:px-4 tw:pt-3 tw:pb-1">
@@ -901,6 +998,7 @@ import type {
   DimensionAnalyticsSummary,
   FoundGroup,
   FieldAlias,
+  ServiceFieldSource,
 } from "@/services/service_streams";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -938,6 +1036,8 @@ const activeStreamType = ref<string>("");
 const selectedStreamType = ref<string>("");
 
 const availableGroups = ref<FoundGroup[]>([]);
+const serviceFieldSources = ref<ServiceFieldSource[]>([]);
+const trackedAliasExpanded = ref(false);
 const warnings = ref<string[]>([]);
 const suggestionDismissed = ref(false);
 
@@ -947,6 +1047,9 @@ const dimensionAnalytics = ref<Record<string, DimensionAnalytics>>({});
 /** Section 2: pill-based field configuration */
 const addingToEnv = ref<string>('');
 const addFieldValue = ref('');
+const addingTrackedAlias = ref(false);
+const addTrackedAliasValue = ref('');
+const addTrackedAliasSelectRef = ref<any>(null);
 const addFieldFilter = ref('');
 
 /** All env keys that have at least one configured field, ordered by detected env order */
@@ -1026,6 +1129,9 @@ const distinguishBy = computed<string[]>({
 
 /** Current identity config fetched from backend */
 const currentIdentityConfig = ref<ServiceIdentityConfig | null>(null);
+
+/** Tracked alias group IDs — limits which groups are written to discovered service records */
+const trackedAliasIds = ref<string[]>([]);
 
 // Computed value for the right pane based on selected stream
 const activeStreamValues = computed(() => {
@@ -1693,11 +1799,16 @@ const insightChartData = computed(() => {
   };
 });
 
-/** Unique field names actually found in data (from FoundGroup.aliases) with their stream types */
+/** Unique field names actually found in data (from service_field_sources) with their stream types */
 const detectedServiceFields = computed<{ name: string; streamTypes: string[] }[]>(() => {
+  if (serviceFieldSources.value.length > 0) {
+    return serviceFieldSources.value
+      .map((s) => ({ name: s.field_name, streamTypes: s.stream_types }))
+      .sort((a, b) => b.streamTypes.length - a.streamTypes.length);
+  }
+  // Fallback: derive from serviceGroup.aliases if service_field_sources not available
   const aliases = serviceGroup.value?.aliases;
   if (!aliases) return [];
-  // Invert: group by field name → which stream types use it
   const fieldMap = new Map<string, string[]>();
   for (const [streamType, fieldName] of Object.entries(aliases)) {
     if (!fieldMap.has(fieldName)) fieldMap.set(fieldName, []);
@@ -2007,6 +2118,72 @@ const primaryDimCards = computed<Record<string, { childValues: string[]; tertiar
   return result;
 });
 
+
+/** Default tracked alias options shown when analytics data is not yet loaded */
+const DEFAULT_TRACKED_OPTIONS = [
+  { label: 'K8s Cluster', value: 'k8s-cluster' },
+  { label: 'K8s Namespace', value: 'k8s-namespace' },
+  { label: 'K8s Deployment', value: 'k8s-deployment' },
+  { label: 'K8s StatefulSet', value: 'k8s-statefulset' },
+  { label: 'K8s DaemonSet', value: 'k8s-daemonset' },
+  { label: 'K8s Pod Name', value: 'k8s-pod-name' },
+  { label: 'AWS ECS Cluster', value: 'aws-ecs-cluster' },
+  { label: 'AWS ECS Task', value: 'aws-ecs-task' },
+  { label: 'Cloud Account', value: 'cloud-account' },
+  { label: 'Region', value: 'region' },
+  { label: 'Environment', value: 'environment' },
+  { label: 'Host', value: 'host' },
+  { label: 'Service Namespace', value: 'service-namespace' },
+  { label: 'Service Version', value: 'service-version' },
+];
+
+/**
+ * Options for the tracked field alias multi-select.
+ * Uses available_groups from analytics when loaded; falls back to DEFAULT_TRACKED_OPTIONS.
+ */
+const trackedAliasOptions = computed(() => {
+  const groups = availableGroups.value;
+  if (groups.length > 0) {
+    return groups.map((g: FoundGroup) => ({
+      label: g.display,
+      value: g.group_id,
+    }));
+  }
+  return DEFAULT_TRACKED_OPTIONS;
+});
+
+/**
+ * Resolved list of tracked aliases with display labels.
+ * IDs with no matching label in either source are dropped with a warning.
+ */
+const resolvedTrackedAliases = computed(() => {
+  const allOptions = [
+    ...trackedAliasOptions.value,
+    ...DEFAULT_TRACKED_OPTIONS,
+  ];
+  const labelMap = new Map(allOptions.map(o => [o.value, o.label]));
+  return [...trackedAliasIds.value].flatMap(id => {
+    const label = labelMap.get(id);
+    if (!label) {
+      console.warn(`[ServiceIdentitySetup] tracked alias id "${id}" has no matching alias definition — skipping`);
+      return [];
+    }
+    return [{ id, label }];
+  }).sort((a, b) => a.label.localeCompare(b.label));
+});
+
+/** Options for the tracked alias add-picker — excludes already-selected IDs */
+const trackedAliasAddOptions = computed(() =>
+  trackedAliasOptions.value.filter(o => !trackedAliasIds.value.includes(o.value))
+);
+
+function onAddTrackedAlias(value: string) {
+  if (value && !trackedAliasIds.value.includes(value)) {
+    trackedAliasIds.value = [...trackedAliasIds.value, value];
+  }
+  addTrackedAliasValue.value = '';
+  addingTrackedAlias.value = false;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -2339,6 +2516,34 @@ function openFieldDetails(field: FoundGroup, streamType: string = "", value: str
   }
 }
 
+/** True when current setDistinguishBy or trackedAliasIds differ from last saved config */
+const isDirty = computed(() => {
+  const saved = currentIdentityConfig.value;
+
+  // Compare trackedAliasIds (order-insensitive)
+  const savedTracked = [...(saved?.tracked_alias_ids ?? [])].sort();
+  const currentTracked = [...trackedAliasIds.value].sort();
+  if (savedTracked.length !== currentTracked.length) return true;
+  if (savedTracked.some((id, i) => id !== currentTracked[i])) return true;
+
+  // Compare setDistinguishBy against saved sets
+  const savedSets: Record<string, string[]> = {};
+  for (const set of saved?.sets ?? []) {
+    savedSets[set.id] = set.distinguish_by.filter(Boolean);
+  }
+  const currentSets = setDistinguishBy.value;
+
+  const allIds = new Set([...Object.keys(savedSets), ...Object.keys(currentSets)]);
+  for (const id of allIds) {
+    const savedFields = savedSets[id] ?? [];
+    const currentFields = (currentSets[id] ?? []).filter(Boolean);
+    if (savedFields.length !== currentFields.length) return true;
+    if (savedFields.some((f, i) => f !== currentFields[i])) return true;
+  }
+
+  return false;
+});
+
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
 async function loadData() {
@@ -2349,7 +2554,8 @@ async function loadData() {
     const summary: DimensionAnalyticsSummary = analyticsRes.data;
     
     availableGroups.value = summary.available_groups ?? [];
-    
+    serviceFieldSources.value = summary.service_field_sources ?? [];
+
     if (summary.dimensions) {
       dimensionAnalytics.value = summary.dimensions.reduce((acc, dim) => {
         acc[dim.dimension_name] = dim;
@@ -2369,6 +2575,9 @@ async function loadData() {
       }
       setDistinguishBy.value = byId;
     }
+
+    // Populate tracked alias IDs from loaded config
+    trackedAliasIds.value = currentIdentityConfig.value?.tracked_alias_ids ?? [];
 
     // 3. Initial suggestion for active env if no config exists for it
     if (
@@ -2431,9 +2640,21 @@ async function saveConfig() {
       return;
     }
 
-    const payload: ServiceIdentityConfig = { sets };
+    if (trackedAliasIds.value.length === 0) {
+      $q.notify({
+        type: "warning",
+        message: "Select at least one tracked alias group.",
+        timeout: 3000,
+      });
+      return;
+    }
+
+    const payload: ServiceIdentityConfig = { sets, tracked_alias_ids: trackedAliasIds.value };
 
     await serviceStreamsService.saveIdentityConfig(props.orgIdentifier, payload);
+
+    // Sync baseline so isDirty resets to false
+    currentIdentityConfig.value = payload;
 
     $q.notify({
       type: "positive",

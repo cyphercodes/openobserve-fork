@@ -133,6 +133,7 @@ impl FieldAlias {
 const MAX_SETS: usize = 5;
 const MAX_DISTINGUISH_BY: usize = 5;
 const MAX_GROUP_BY: usize = 5;
+const MAX_TRACKED_ALIASES: usize = 30;
 
 /// One identity set — a disambiguation scheme for one class of workloads.
 ///
@@ -200,11 +201,20 @@ impl IdentitySet {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct ServiceIdentityConfig {
     pub sets: Vec<IdentitySet>,
+
+    /// Semantic alias group IDs whose values are tracked per service record.
+    /// Each entry is the `id` of a `FieldAlias` group (e.g. "k8s-cluster", "environment").
+    /// The "service" group is always tracked implicitly and must NOT be listed here.
+    #[serde(default)]
+    pub tracked_alias_ids: Vec<String>,
 }
 
 impl ServiceIdentityConfig {
     pub fn default_config() -> Self {
-        Self { sets: vec![] }
+        Self {
+            sets: vec![],
+            tracked_alias_ids: vec![],
+        }
     }
 
     /// Validate a user-supplied config. Requires at least 1 set.
@@ -222,6 +232,18 @@ impl ServiceIdentityConfig {
             if !seen_ids.insert(set.id.as_str()) {
                 return Err(format!("duplicate set id '{}'", set.id));
             }
+        }
+        if self.tracked_alias_ids.is_empty() {
+            return Err("tracked_alias_ids requires at least 1 alias group ID".into());
+        }
+        if self.tracked_alias_ids.len() > MAX_TRACKED_ALIASES {
+            return Err(format!(
+                "tracked_alias_ids cannot exceed {} entries",
+                MAX_TRACKED_ALIASES
+            ));
+        }
+        if self.tracked_alias_ids.iter().any(|id| id == "service") {
+            return Err("\"service\" is always tracked implicitly and must not be listed".into());
         }
         Ok(())
     }
@@ -366,6 +388,7 @@ mod tests {
     fn test_service_identity_config_validate_ok() {
         let cfg = ServiceIdentityConfig {
             sets: vec![make_set("k8s", "Kubernetes", &["k8s-cluster"])],
+            tracked_alias_ids: vec!["k8s-cluster".to_string()],
         };
         assert!(cfg.validate().is_ok());
     }
@@ -377,13 +400,17 @@ mod tests {
                 make_set("k8s", "Kubernetes", &["k8s-cluster", "k8s-namespace"]),
                 make_set("aws", "AWS", &["aws-region", "aws-account"]),
             ],
+            tracked_alias_ids: vec!["k8s-cluster".to_string()],
         };
         assert!(cfg.validate().is_ok());
     }
 
     #[test]
     fn test_service_identity_config_validate_empty_sets() {
-        let cfg = ServiceIdentityConfig { sets: vec![] };
+        let cfg = ServiceIdentityConfig {
+            sets: vec![],
+            tracked_alias_ids: vec!["k8s-cluster".to_string()],
+        };
         let err = cfg.validate().unwrap_err();
         assert!(err.contains("at least 1"));
     }
@@ -399,6 +426,7 @@ mod tests {
                 make_set("custom1", "Custom1", &["host"]),
                 make_set("custom2", "Custom2", &["dc"]), // 6 exceeds MAX_SETS = 5
             ],
+            tracked_alias_ids: vec!["k8s-cluster".to_string()],
         };
         let err = cfg.validate().unwrap_err();
         assert!(err.contains("max 5"));
@@ -411,6 +439,7 @@ mod tests {
                 make_set("k8s", "Kubernetes", &["k8s-cluster"]),
                 make_set("k8s", "K8s Dupe", &["k8s-namespace"]),
             ],
+            tracked_alias_ids: vec!["k8s-cluster".to_string()],
         };
         let err = cfg.validate().unwrap_err();
         assert!(err.contains("duplicate set id"));
@@ -429,6 +458,7 @@ mod tests {
                 ),
                 make_set("aws", "AWS", &["aws-region"]),
             ],
+            ..Default::default()
         };
 
         let mut dims = std::collections::HashMap::new();
@@ -448,6 +478,7 @@ mod tests {
                 make_set("k8s", "Kubernetes", &["k8s-cluster"]),
                 make_set("aws", "AWS", &["region"]),
             ],
+            ..Default::default()
         };
 
         let mut dims = std::collections::HashMap::new();
@@ -463,6 +494,7 @@ mod tests {
     fn test_resolve_best_set_no_coverage_returns_none() {
         let cfg = ServiceIdentityConfig {
             sets: vec![make_set("k8s", "Kubernetes", &["k8s-cluster"])],
+            ..Default::default()
         };
 
         // Record has no k8s fields at all
@@ -474,6 +506,7 @@ mod tests {
     fn test_resolve_best_set_empty_value_not_counted() {
         let cfg = ServiceIdentityConfig {
             sets: vec![make_set("k8s", "Kubernetes", &["k8s-cluster"])],
+            ..Default::default()
         };
 
         let mut dims = std::collections::HashMap::new();
@@ -489,6 +522,7 @@ mod tests {
                 make_set("k8s", "Kubernetes", &["k8s-cluster", "k8s-namespace"]),
                 make_set("vm", "VM", &["host", "datacenter"]),
             ],
+            ..Default::default()
         };
 
         // VM record: only host + datacenter present

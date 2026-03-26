@@ -540,6 +540,30 @@ pub async fn init() -> Result<(), anyhow::Error> {
         pause_if: !get_enterprise_config().service_streams.enabled
     );
     #[cfg(feature = "enterprise")]
+    spawn_pausable_job!(
+        "service_streams_cleanup",
+        (o2_enterprise::enterprise::common::config::SS_CLEANUP_INTERVAL_MINS as u64) * 60,
+        {
+            use o2_enterprise::enterprise::common::config::SS_STALE_THRESHOLD_HOURS;
+            if LOCAL_NODE.is_querier() || LOCAL_NODE.is_single_node() {
+                let orgs = infra::table::organizations::list(
+                    infra::table::organizations::ListFilter::with_limit(None),
+                )
+                .await
+                .unwrap_or_default();
+                for org in orgs {
+                    if let Err(e) = o2_enterprise::enterprise::service_streams::storage
+                        ::ServiceStorage::cleanup_stale(&org.identifier, SS_STALE_THRESHOLD_HOURS * 3600)
+                        .await
+                    {
+                        log::error!("[service_streams_cleanup] org={} err={}", org.identifier, e);
+                    }
+                }
+            }
+        },
+        pause_if: !get_enterprise_config().service_streams.enabled
+    );
+    #[cfg(feature = "enterprise")]
     tokio::task::spawn(pipeline::run());
     pipeline_error_cleanup::run();
     session_cleanup::run();

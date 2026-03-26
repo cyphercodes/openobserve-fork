@@ -135,11 +135,6 @@ impl ServiceRecord {
     }
 }
 
-pub async fn init() -> Result<(), errors::Error> {
-    create_table().await?;
-    Ok(())
-}
-
 pub async fn create_table() -> Result<(), errors::Error> {
     let client = ORM_CLIENT_DDL.get_or_init(connect_to_orm_ddl).await;
     let builder = client.get_database_backend();

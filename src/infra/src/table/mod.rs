@@ -61,7 +61,6 @@ pub mod users;
 pub async fn init() -> Result<(), anyhow::Error> {
     distinct_values::init().await?;
     short_urls::init().await?;
-    service_streams::init().await?;
     Ok(())
 }
 

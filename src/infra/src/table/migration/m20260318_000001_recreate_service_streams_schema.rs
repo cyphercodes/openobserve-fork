@@ -1,8 +1,6 @@
 use sea_orm_migration::prelude::*;
 
 const SERVICE_STREAMS_NAME_IDX: &str = "service_streams_name_idx";
-#[allow(dead_code)]
-const SERVICE_STREAMS_DISAMBIG_IDX: &str = "service_streams_disambig_idx";
 const SERVICE_STREAMS_UNIQUE_IDX: &str = "service_streams_unique_idx";
 
 // Raw SQL for Postgres: uses JSONB, GIN index, and native IF EXISTS clauses.
@@ -29,7 +27,6 @@ const POSTGRES_DOWN_SQL: &[&str] = &[
     "CREATE TABLE service_streams (
   id CHAR(27) NOT NULL PRIMARY KEY,
   org_id VARCHAR(128) NOT NULL,
-  service_key VARCHAR(512) NOT NULL,
   correlation_key VARCHAR(64) NOT NULL DEFAULT '',
   service_name VARCHAR(256) NOT NULL,
   dimensions TEXT NOT NULL,
@@ -38,7 +35,6 @@ const POSTGRES_DOWN_SQL: &[&str] = &[
   last_seen BIGINT NOT NULL,
   metadata TEXT
 )",
-    "CREATE UNIQUE INDEX service_streams_org_service_key_idx ON service_streams (org_id, service_key)",
     "CREATE INDEX service_streams_org_service_name_idx ON service_streams (org_id, service_name)",
 ];
 
@@ -240,18 +236,18 @@ impl MigrationTrait for Migration {
                     )
                     .await?;
 
-                manager
-                    .create_index(
-                        Index::create()
-                            .if_not_exists()
-                            .name("service_streams_org_service_key_idx")
-                            .table(ServiceStreams::Table)
-                            .col(ServiceStreams::OrgId)
-                            .col(ServiceStreams::ServiceKey)
-                            .unique()
-                            .to_owned(),
-                    )
-                    .await?;
+                // manager
+                //     .create_index(
+                //         Index::create()
+                //             .if_not_exists()
+                //             .name("service_streams_org_service_key_idx")
+                //             .table(ServiceStreams::Table)
+                //             .col(ServiceStreams::OrgId)
+                //             .col(ServiceStreams::ServiceKey)
+                //             .unique()
+                //             .to_owned(),
+                //     )
+                //     .await?;
 
                 manager
                     .create_index(
